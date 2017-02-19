@@ -22,14 +22,20 @@
 	}
 
 	#controls {
-		margin: 2px 0;
+		margin: 2px 2px;
 		border:2px solid black;
-		vertical-align:top;
 		color: #6C5EB5;
 		position:absolute; top:5px; left:82%;
 		font-size: 20px;
 		font-weight:  bold;
 		font-family: "Lucida Console", Monaco, monospace;
+
+	}
+	
+	#controls tr {
+		text-align: center;
+		vertical-align: middle;
+		horizontal-align: center;
 	}
 
 	section {
@@ -84,8 +90,8 @@
 	}
 </style>
 <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.panzoom/3.2.2/jquery.panzoom.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-mousewheel/3.1.13/jquery.mousewheel.min.js"></script>
+<script src="/js/plugins/jquery.panzoom.min.js"></script>
+<script src="/js/plugins/jquery.mousewheel.min.js"></script>
 <script src="c64hw.js"></script>
 </head>
 
@@ -179,15 +185,34 @@
 <div id="controls">
 <table>
 <tr><th colspan=10>Set signals:
-<tr><td><input type="checkbox" name="nHIRAM" id=".nHIRAM" checked onchange='set_signal(this.id, this.checked)'><td class="overline">HIRAM
-<tr><td><input type="checkbox" name="nLORAM" id=".nLORAM" checked onchange='set_signal(this.id, this.checked)'><td class="overline">LORAM
-<tr><td><input type="checkbox" name="nCHAREN" id=".nCHAREN" checked onchange='set_signal(this.id, this.checked)'><td class="overline">CHAREN
-<tr><td><input type="checkbox" name="nEXROM" id=".nEXROM" checked onchange='set_signal(this.id, this.checked)'><td class="overline">EXROM
-<tr><td><input type="checkbox" name="nGAME" id=".nGAME" checked onchange='set_signal(this.id, this.checked)'><td class="overline">GAME
-<tr><td><input type="checkbox" name="RW" id=".RW" checked onchange='set_signal(this.id, this.checked)'><td>R/<span class="overline">W</span>
-<tr><td><input type="checkbox" name="BA" id=".BA" checked onchange='set_signal(this.id, this.checked)'><td>BA 
-<tr><td><input type="checkbox" name="nVA14" checked id=".nVA14" onchange='set_signal(this.id, this.checked)'><td class="overline">VA14 
-<tr><td><input type="checkbox" name="nVA15" checked id=".nVA15" onchange='set_signal(this.id, this.checked)'><td class="overline">VA15
+
+<tr id="_nHIRAM" onclick='set_signal(this.id)'>
+<td class="overline">HIRAM
+
+<tr id="_nLORAM" onclick='set_signal(this.id)'>
+<td class="overline">LORAM
+
+<tr id="_nCHAREN" onclick='set_signal(this.id)'>
+<td class="overline">CHAREN
+
+<tr id="_nEXROM" onclick='set_signal(this.id)'>
+<td class="overline">EXROM
+
+<tr id="_nGAME" onclick='set_signal(this.id)'>
+<td class="overline">GAME
+
+<tr id="_RW" onclick='set_signal(this.id)'>
+<td>R/<span class="overline">W</span>
+
+<tr id="_BA" onclick='set_signal(this.id)'>
+<td>BA 
+
+<tr id="_nVA14" onclick='set_signal(this.id)'>
+<td class="overline">VA14 
+
+<tr id="_nVA15" onclick='set_signal(this.id)'>
+<td class="overline">VA15 
+
 </table>
 
 <hr>

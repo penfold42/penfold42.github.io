@@ -1,7 +1,11 @@
 
 
 
-var svgDoc;
+var svgDoc1;
+var svgDoc2;
+
+var delay;
+var playing = false;
 
 newStyles = "";
 
@@ -20,6 +24,7 @@ var DATA = 0;
 
 var RW = 1;
 var nIRQ = 1;
+var RESET = 0;
 var nRESET = 1;
 
 var COLORCLOCK = 0;
@@ -96,7 +101,7 @@ var U17 = 1;
 
 // list of signals to CSS update
 var CSS_signals = [ 
-	"AEC", "nVA14", "nCAS", "nRAS", "DBUS", "RW", "nAEC", "nRESET", "Ph2",
+	"AEC", "nVA14", "nCAS", "nRAS", "DBUS", "RW", "nAEC", "RESET", "nRESET", "Ph2",
 	"COLORCLOCK", "DOTCLOCK", "nDMA", "nIRQ", "BA", "RDY", "nHIRAM", "nLORAM", "nCHAREN", "CAEC",
 	"nEXROM", "nGAME", "nROMH", "nROML", "nIO", "nCOLOR", "nSID",
 	"nVIC", "nVA15", "nCASRAM", "nBASIC", "nKERNAL", "nCHAROM", "GRW", "U14_Y3", "U14_Y2", 
@@ -116,39 +121,45 @@ var basic_rom = [];
 var chargen_rom = [];
 
 function init_c64() {
-	svgDoc = svgObject2.contentDocument;
+	svgDoc1 = svgObject1.contentDocument;
+	svgDoc2 = svgObject2.contentDocument;
 
-	pla_rom = load_binary_resource("PLA.BIN");
-	kernal_rom = load_binary_resource("kernal");
-	basic_rom = load_binary_resource("basic");
-	chargen_rom = load_binary_resource("chargen");
+	pla_rom = load_binary_resource("roms/PLA.BIN");
+	kernal_rom = load_binary_resource("roms/kernal");
+	basic_rom = load_binary_resource("roms/basic");
+	chargen_rom = load_binary_resource("roms/chargen");
 
 }
 
 var playTimer;
 function play() {
 	clearInterval(playTimer);
-	var speed = parseInt(document.getElementById("speed").value);
-	if (speed < 0) { speed = 0; }
-	if (speed > 9) { speed = 9; }
-	document.getElementById("speed").value = speed;
+	var speed = check_speed(0);
 	
-	var delay = 100*(9-speed);
+	delay = 2048/(1<<speed);
+//	if (speed == 9) delay = 0;
 	playTimer = setInterval(step_simulation, delay);
-//	playTimer = setInterval(step_simulation, 0);
+	playing = true;
 }
 
 function stop() {
 	clearInterval(playTimer);
+	playing = false;
 }
 
 function speed_change(delta) {
+	var speed = check_speed(delta);
+
+	if (playing) play();
+}
+
+function check_speed(delta) {
 	var speed = parseInt(document.getElementById("speed").value) + delta;
 	if (speed < 0) { speed = 0; }
 	if (speed > 9) { speed = 9; }
 	document.getElementById("speed").value = speed;
+	return speed;
 }
-
 
 function step_simulation(skip) {
         if ( typeof skip === 'undefined' || skip === null) {
@@ -248,21 +259,50 @@ function paint_page() {
 		document.getElementById("VIC_ADDRESS").style.backgroundColor = "yellow";
 	}
 
+// update input selectors
+	var input_selectors = [
+		"_nHIRAM", "_nLORAM", "_nCHAREN", "_nEXROM",
+		"_nGAME", "_RW", "_BA", "_nVA14", "_nVA15",
+	];
+
+	for (var i in input_selectors) {
+		var id=input_selectors[i];
+		if (id.substring(0, 1) == '_') { 
+			name = id.substring(1);
+
+			if (window[name] == 0) {
+				document.getElementById(id).style.backgroundColor = "#0c0";
+				document.getElementById(id).style.color = "#eee";
+			} else {
+				document.getElementById(id).style.backgroundColor = "#c00";
+				document.getElementById(id).style.color = "#eee";
+			}
+		}
+	}
 
 // update all the other styles in one hit
 	id = "painted";
 
-	var newStyleElement = svgDoc.createElementNS("http://www.w3.org/2000/svg", "style");
-	newStyleElement.id = id;
-	newStyleElement.textContent = newStyles;
+	var newStyleElement1 = svgDoc1.createElementNS("http://www.w3.org/2000/svg", "style");
+	newStyleElement1.id = id;
+	newStyleElement1.textContent = newStyles;
 
-	var styleElement = svgDoc.getElementById(id);
+	var newStyleElement2 = svgDoc2.createElementNS("http://www.w3.org/2000/svg", "style");
+	newStyleElement2.id = id;
+	newStyleElement2.textContent = newStyles;
+
+	var styleElement = svgDoc1.getElementById(id);
 	if ( typeof styleElement === 'undefined' || styleElement === null) {
-//		alert('null or undefined, add newStyleElement');
-		svgDoc.getElementById("myStyle").appendChild(newStyleElement);
+		svgDoc1.getElementById("myStyle").appendChild(newStyleElement1);
 	} else {
-//		alert('newStyles: ' + newStyles);
-		svgDoc.getElementById("myStyle").replaceChild(newStyleElement, styleElement);
+		svgDoc1.getElementById("myStyle").replaceChild(newStyleElement1, styleElement);
+	}
+
+	var styleElement = svgDoc2.getElementById(id);
+	if ( typeof styleElement === 'undefined' || styleElement === null) {
+		svgDoc2.getElementById("myStyle").appendChild(newStyleElement2);
+	} else {
+		svgDoc2.getElementById("myStyle").replaceChild(newStyleElement2, styleElement);
 	}
 
 }
@@ -333,6 +373,12 @@ function update_lines() {
 		nAEC = 0;
 	}
 
+// U8 7406 pin 12 near 556 power on reset
+	if (RESET == 0) {
+		nRESET = 1;
+	} else {
+		nRESET = 0;
+	}
 
 // Address bus lines
 	if (AEC == 1) {		
@@ -457,28 +503,27 @@ function update_lines() {
 	if (nVIC == 0) { U19 = 1 };
 	if (nSID == 0) { U18 = 1 };
 	if (nCASRAM == 0) { U12 = 1 };
+	if (nBASIC == 0) U3 = 1;
+	if (nKERNAL == 0) U4 = 1;
+	if (nCHAROM == 0) U5 = 1;
 
 // respond to reads from chips 
 // but delay setting the data bus until master_clock 6,7,14,15
 // this simulates an access time of ~180nS
+
 	if (RW == 1 && master_clock%8 >= 6) {
-		if (nBASIC == 0) {
-			U3 = 1;
-			set_data_lines( basic_rom[BUS_ADDRESS & 0x1fff] ) ;
-		}
-		if (nKERNAL == 0) {
-			U4 = 1;
-			set_data_lines( kernal_rom[BUS_ADDRESS & 0x1fff] ) ;
-		}
-		if (nCHAROM == 0) {
-			U5 = 1
-			set_data_lines( chargen_rom[BUS_ADDRESS & 0x0fff] ) ;
-		}
+		if (nBASIC == 0) set_data_lines( basic_rom[BUS_ADDRESS & 0x1fff] ) ;
+		if (nKERNAL == 0) set_data_lines( kernal_rom[BUS_ADDRESS & 0x1fff] ) ;
+		if (nCHAROM == 0) set_data_lines( chargen_rom[BUS_ADDRESS & 0x0fff] ) ;
+	}
+
+	if (nCASRAM == 0 && RW == 1 && master_clock%8 >= 6) {
+		set_data_lines ( U12_RAM(1, BUS_ADDRESS & 0xffff, 0) );
 	}
 
 	if (nCOLORRAM == 0) {
 		U6 = 1
-		if (GRW == 1) {
+		if (GRW == 1 && master_clock%8 >= 6) {
 			var val = U6_2114(1, BUS_ADDRESS & 0x03ff, 0);
 			D[8] = (val>>0) & 0x01;
 			D[9] = (val>>1) & 0x01;
@@ -490,24 +535,17 @@ function update_lines() {
 
 // D8..D11 
 // U16 4066 near color ram
-	if (AEC == 1 && GRW == 0) {		// CPU write cycle
-		D[8] = D[0];
-		D[9] = D[1];
-		D[10] = D[2];
-		D[11] = D[3];
-		// need to write to fake color ram if we implement it
-	}
-	if (AEC == 1 && GRW == 1) {		// CPU read cycle
-		D[0] = D[8];
-		D[1] = D[9];
-		D[2] = D[10];
-		D[3] = D[11];
-	}
-	if (AEC == 0 && GRW == 1) {		// VIC read cycle
-	}
-	if (AEC == 0 && GRW == 0) {		// VIC write... should never happen
-	}
+	if (AEC == 1) {		// CPU cycle
+		if (D[0] >= 0) D[8] = D[0];
+		if (D[1] >= 0) D[9] = D[1];
+		if (D[2] >= 0) D[10] = D[2];
+		if (D[3] >= 0) D[11] = D[3];
 
+		if (D[8] >= 0) D[0] = D[8];
+		if (D[9] >= 0) D[1] = D[9];
+		if (D[10] >= 0) D[2] = D[10];
+		if (D[11] >= 0) D[3] = D[11];
+	}
 }
 
 function load_binary_resource(url) {
@@ -623,8 +661,17 @@ function U6_2114 (rw,addr,data) {
 	}
 }
 
+function U12_RAM (rw,addr,data) {
+// a massive cheat here....
+// we need real data
+// we need to look at RAS/CAS like a real chip would
+	if (rw == 1) {	// read cycle
+		return Math.random() * (256 - 0) + 0;
+	}
+}
 
-function set_signal(id, checked) {
+
+function set_signal_checkbox(id, checked) {
 
 	var name = document.getElementById(id).name;
 	var val = document.getElementById(id).value;
@@ -639,6 +686,27 @@ function set_signal(id, checked) {
 		}
 	}
 	update_all();
+}
+
+function set_signal(id) {
+
+	var name;
+	if (id.substring(0, 1) == '_') { 
+		name = id.substring(1);
+		if ( typeof window[name] === 'undefined' || window[name] === null) {
+			alert ('set_sig2 id: ' + id + ' name: ' + name + ' is invalid');
+		} else {
+			if (window[name] == 1) {
+				window[name] = 0;
+//				document.getElementById(id).style.backgroundColor = "#0c0";
+			} else {
+				window[name] = 1;
+//				document.getElementById(id).style.backgroundColor = "#c00";
+			}
+			update_all();
+		}
+	}
+
 }
 
 
