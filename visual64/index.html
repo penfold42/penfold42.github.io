@@ -12,7 +12,17 @@
 		vertical-align: middle;
 		horizontal-align: center;
 	}
+
 	.tape_controls table tr td input {
+		margin:auto;
+		display:block;
+		background-color: white;
+		text-align: center;
+		vertical-align: middle;
+		horizontal-align: center;
+	}
+
+	.addresses table tr td input {
 		margin:auto;
 		display:block;
 		background-color: white;
@@ -183,6 +193,8 @@
 
 
 <div id="controls">
+
+<div class="set_signals">
 <table>
 <tr><th colspan=10>Set signals:
 
@@ -214,6 +226,7 @@
 <td class="overline">VA15 
 
 </table>
+</div>
 
 <hr>
 <div class="tape_controls">
@@ -237,10 +250,47 @@
 <hr>
 <div class="addresses">
 <table>
-<tr><td><input type="textbox" size="5" id="CPU_ADDRESS" onchange='set_addr(this.id)'><td> CPU Addr
-<tr><td><input type="textbox" size="5" id="VIC_ADDRESS" onchange='set_addr(this.id)'><td> VIC Addr
-<tr><td><input type="textbox" size="5" id="BUS_ADDRESS" onchange='set_addr(this.id)'><td> BUS Addr
-<tr><td><input type="textbox" size="5" id="DATA"><td> DATA
+<tr><th colspan=10>Addresses:
+<tr>
+<td colspan=1> <input type="image" src="icons/down.gif" id="cpudown" onclick='addr_change("CPU_ADDRESS", -1)'>
+<td><input type="textbox" size="5" id="CPU_ADDRESS" onchange='set_addr(this.id)'>
+<td colspan=1> <input type="image" src="icons/up.gif" id="cpuup" onclick='addr_change("CPU_ADDRESS", +1)'>
+<td>CPU
+
+<tr>
+<td colspan=1> <input type="image" src="icons/down.gif" id="vicdown" onclick='addr_change("VIC_ADDRESS", -1)'>
+<td><input type="textbox" size="5" id="VIC_ADDRESS" onchange='set_addr(this.id)'>
+<td colspan=1> <input type="image" src="icons/up.gif" id="vicup" onclick='addr_change("VIC_ADDRESS", +1)'>
+<td>VIC
+
+<tr>
+<td>
+<td><input type="textbox" size="5" id="BUS_ADDRESS" >
+<td>
+<td>BUS
+<td>
+
+<tr>
+<td>
+<td><input type="textbox" size="5" id="DATA" onchange='set_addr(this.id)'>
+<td>
+<td> DATA
+<td>
+
+<tr>
+<td>
+<td><input type="textbox" size="5" id="ROW_ADDRESS">
+<td>
+<td> row
+<td>
+
+<tr>
+<td>
+<td><input type="textbox" size="5" id="COL_ADDRESS" >
+<td>
+<td> col
+<td>
+
 </table>
 </div>
 
@@ -252,9 +302,6 @@
 <br><input type="checkbox" id=".U19" onchange='sigchange(this.id, this.checked)'>U19
 -->
 
-<!--
-<br><input type="button" id="blah" onclick='blah()'>reset zoom 
--->
 </div>
 
 

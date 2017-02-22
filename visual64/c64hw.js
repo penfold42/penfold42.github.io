@@ -16,10 +16,13 @@ var CAEC = 0;
 var nCAS = 0;
 var nRAS = 0;
 var nCASRAM = 1;
+var last_nRAS = 0;
+var last_nCASRAM = 1;
 
 // D0..D11
 var D = [0,0,0,0,0,0,0,0,0,0,0,0]
-var DBUS = 0;
+var DBUS_colour = 0;	// 0..99
+//var DBUS = 0;
 var DATA = 0;
 
 var RW = 1;
@@ -49,7 +52,10 @@ var A = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 var ABUS_colour = 0;	// 0..99
 
 var MA = [0,0,0,0,0,0,0,0]
+var row_address = 0;
+var col_address = 0;
 
+var U26latch = [0,0,0,0,0,0,0,0];
 
 var nEXROM = 1;
 var nGAME = 1;
@@ -81,8 +87,13 @@ var IO2 = 1;
 var nIO = 0;
 
 
-var CSS_shapes = [ "U19", "U12", "U26", "U6", "U3", "U4", "U5", "U17", "U18", "U14", "U15a", "U15b", "U13", "U25", "U16" ];
+var CSS_shapes = [
+	"U19", "U12", "U26", "U6", "U3", "U4", "U5", 
+	"U17", "U18", "U14", "U15a", "U15b", "U13", "U25", "U16",
+	"C105", "C24",
+ ];
 
+// the chips
 var U3 = 0;
 var U4 = 0;
 var U5 = 0;
@@ -99,9 +110,12 @@ var U26 = 0;
 var U16 = 0;
 var U17 = 1;
 
+var C105 = 0;
+var C24 = 0;
+
 // list of signals to CSS update
-var CSS_signals = [ 
-	"AEC", "nVA14", "nCAS", "nRAS", "DBUS", "RW", "nAEC", "RESET", "nRESET", "Ph2",
+var CSS_digital_signals = [ 
+	"AEC", "nVA14", "nCAS", "nRAS", "RW", "nAEC", "RESET", "nRESET", "Ph2",
 	"COLORCLOCK", "DOTCLOCK", "nDMA", "nIRQ", "BA", "RDY", "nHIRAM", "nLORAM", "nCHAREN", "CAEC",
 	"nEXROM", "nGAME", "nROMH", "nROML", "nIO", "nCOLOR", "nSID",
 	"nVIC", "nVA15", "nCASRAM", "nBASIC", "nKERNAL", "nCHAROM", "GRW", "U14_Y3", "U14_Y2", 
@@ -110,7 +124,6 @@ var CSS_signals = [
 
 
 
-var U26latch = [0,0,0,0,0,0,0,0];
 
 var last_master_clock = 15;
 var master_clock = 0;
@@ -119,15 +132,28 @@ var pla_rom = [];
 var kernal_rom = [];
 var basic_rom = [];
 var chargen_rom = [];
+var dram = [];
+var colour_ram = [];
+var vic_regs = [];
+var sid_regs = [];
+var cia1_regs = [];
+var cia2_regs = [];
 
 function init_c64() {
 	svgDoc1 = svgObject1.contentDocument;
 	svgDoc2 = svgObject2.contentDocument;
 
+// setup roms and allocate memory like devices
 	pla_rom = load_binary_resource("roms/PLA.BIN");
 	kernal_rom = load_binary_resource("roms/kernal");
 	basic_rom = load_binary_resource("roms/basic");
 	chargen_rom = load_binary_resource("roms/chargen");
+	dram = Array(65536).fill(0x42);
+	colour_ram = Array(1024).fill(14);
+	vic_regs = Array(64).fill(0);
+	sid_regs = Array(32).fill(0);		// 29 really
+	cia1_regs = Array(16).fill(0);
+	cia2_regs = Array(16).fill(0);
 
 }
 
@@ -172,6 +198,12 @@ function step_simulation(skip) {
 }
 
 function update_all() {
+	if (master_clock == 0 && last_master_clock == 15) {
+		CPU_ADDRESS += 0x100;
+		VIC_ADDRESS += 1;
+	}
+	last_master_clock = master_clock;
+
 	newStyles = "";
 	clear_lines();
 	update_clock_lines();
@@ -184,12 +216,21 @@ function clear_lines() {
 	U14_Y3 = -1;
 	U14_Y2 = -1;
 
-	for (var i=0; i<=11; i++) {
-		D[i] = -1;
+	if (RW == 1) {
+		DATA = -1;
+		for (var i=0; i<=11; i++) {
+			D[i] = -1;
+		}
+	} else {
+		set_data_lines(DATA);
 	}
 	for (var i=0; i<=15; i++) {
 		A[i] = -1;
 	}
+	for (var i=0; i<=7; i++) {
+		MA[i] = -1;
+	}
+	nRESET = -1;
 }
 
 
@@ -203,60 +244,53 @@ function paint_page() {
 	}
 
 // mostly lots of individual signals
-	for (var i in CSS_signals) {
-		change_CSS_signal('.'+CSS_signals[i], window[CSS_signals[i]]) ;
+	for (var i in CSS_digital_signals) {
+		change_CSS_digital_signal('.'+CSS_digital_signals[i], window[CSS_digital_signals[i]]) ;
 	}
 
 // address lines and address bus
-	var any_floating = false;
 	for (var i=0; i<=15; i++) {
-		change_CSS_signal('.A'+i, A[i]);
-		if (A[i] == -1) { any_floating = true; }
+		change_CSS_digital_signal('.A'+i, A[i]);
 	}
-	var red = parseInt(ABUS_colour*191/99);	// colours 00-c0
-	var green = 191-red;
-
-	red = ("00" + (+red).toString(16)).substr(-2);
-	green = ("00" + (+green).toString(16)).substr(-2);
-	var blue = ("00");
-	if (any_floating) {
-		change_CSS_bus('.ABUS', -1);
-	} else {
-		change_CSS_bus('.ABUS', red + green + blue);
-	}
-
+	change_CSS_analog_signal('.ABUS', ABUS_colour);
 
 // multiplexed address lines 
 	for (var i=0; i<=7; i++) {
-		change_CSS_signal('.MA'+i, MA[i]);
+		change_CSS_digital_signal('.MA'+i, MA[i]);
 	}
 
 // data lines and data bus
 	var any_floating = false;
 	for (var i=0; i<=11; i++) {
-		change_CSS_signal('.D'+i, D[i]);
-		if (D[i] == -1) { any_floating = true; }
+		change_CSS_digital_signal('.D'+i, D[i]);
+		if (i<=7 && D[i] == -1) { any_floating = true; }
 	}
+
 	var red = ("00" + (+DATA).toString(16)).substr(-2);
 	var green = ("00" + (+(255-DATA)).toString(16)).substr(-2);
-	var blue = ("FF");
+	var blue = ("00");
 	if (any_floating) {
-		change_CSS_bus('.DBUS', -1);
+		change_CSS_bus('.DBUS', 'none');
 	} else {
-		change_CSS_bus('.DBUS', red + green + blue);
+		change_CSS_bus('.DBUS', '#' + red + green + blue);
 	}
+
 
 // update text fields
 	document.getElementById("CPU_ADDRESS").value = toHex(CPU_ADDRESS, 4);
 	document.getElementById("VIC_ADDRESS").value = toHex(VIC_ADDRESS, 4);
 	document.getElementById("BUS_ADDRESS").value = toHex(BUS_ADDRESS, 4);
+	if (DATA >= 0) {
+		document.getElementById("DATA").value = toHex(DATA, 2);
+//	} else {
+//		document.getElementById("DATA").value = 'Hi-Z';
+	}
 	if (AEC == 1) {
-
-		document.getElementById("CPU_ADDRESS").style.backgroundColor = "yellow";
+		document.getElementById("CPU_ADDRESS").style.backgroundColor = C64Yellow;
 		document.getElementById("VIC_ADDRESS").style.backgroundColor = "white";
 	} else {
 		document.getElementById("CPU_ADDRESS").style.backgroundColor = "white";
-		document.getElementById("VIC_ADDRESS").style.backgroundColor = "yellow";
+		document.getElementById("VIC_ADDRESS").style.backgroundColor = C64Yellow;
 	}
 
 // update input selectors
@@ -271,10 +305,10 @@ function paint_page() {
 			name = id.substring(1);
 
 			if (window[name] == 0) {
-				document.getElementById(id).style.backgroundColor = "#0c0";
+				document.getElementById(id).style.backgroundColor = C64Green;	//"#0c0";
 				document.getElementById(id).style.color = "#eee";
 			} else {
-				document.getElementById(id).style.backgroundColor = "#c00";
+				document.getElementById(id).style.backgroundColor = C64LightRed;	//"#c00";
 				document.getElementById(id).style.color = "#eee";
 			}
 		}
@@ -335,33 +369,35 @@ function update_clock_lines() {
 		nCAS = 0;
 	}
 
-	if (master_clock == 0 && last_master_clock == 15) {
-		CPU_ADDRESS += 0x100;
-		VIC_ADDRESS += 1;
-	}
-	last_master_clock = master_clock;
-
 }
 
-function toHex(number, digits) {
-	return '$' + ("0000" + (+number).toString(16)).substr(-digits);
+function set_data_lines(data) {
+	DATA	= data;
+	for (var i=0; i<=7; i++) {
+		D[i]	= (data>>i) & 0x01;
+	}
 }
 
 function set_A_lines(addr, start, end) {
 	for (var i=start; i<=end; i++) {
-		if (addr & 1<<i) {
-			A[i] = 1;
-		} else {
-			A[i] = 0;
-		}
+		A[i]	= (addr>>i) & 0x01;
 	}
+
+	var any_floating = false;
 	ABUS_colour = 0;
 	for (var i=0; i<=15; i++) {
 		if (A[i] == 1) {
 			ABUS_colour++;
 		}
+		if (A[i] == -1) {
+			any_floating = true;
+		}
 	}
-	ABUS_colour *= 99/16;	// 0..99
+	if (any_floating) {
+		ABUS_colour = -1;
+	} else {
+		ABUS_colour *= 99/16;	// 0..99
+	}
 }
 
 function update_lines() {
@@ -374,6 +410,21 @@ function update_lines() {
 	}
 
 // U8 7406 pin 12 near 556 power on reset
+// Trigger, The negative input to comparator No 1. A negative pulse on this pin “sets” the internal 
+// Flip-flop when the voltage drops below 1/3Vcc causing the output to switch from a “LOW” to a “HIGH” state.
+
+// Threshold, The positive input to comparator No 2. This pin is used to reset the Flip-flop when 
+// the voltage applied to it exceeds 2/3Vcc causing the output to switch from “HIGH” to “LOW” state. 
+// This pin connects directly to the RC timing circuit.
+
+// Discharge, The discharge pin is connected directly to the Collector of an internal NPN transistor which is 
+// used to “discharge” the timing capacitor to ground when the output at pin 3 switches “LOW”.
+
+/*
+	C105	1M	104pF	= 100K * 1uF = 0.1S	trigger pulse
+	C24	47k	106pF	= 470K * 1uF = 0.47S	reset pulse
+*/
+
 	if (RESET == 0) {
 		nRESET = 1;
 	} else {
@@ -391,7 +442,6 @@ function update_lines() {
 		BUS_ADDRESS |= 0xf000		// pullup resistors
 		set_A_lines(BUS_ADDRESS, 0, 15);
 
-//		if (nCAS == 0) {		// high byte for /CAS
 		if (master_clock >= 2) {		// high byte for /CAS
 			for (var i=0; i<=5; i++) {
 				MA[i]	= (VIC_ADDRESS>>(i+8)) & 0x01;
@@ -502,7 +552,6 @@ function update_lines() {
 	U19 = U18 = U12 = U3 = U4 = U5 = U6 = 0;
 	if (nVIC == 0) { U19 = 1 };
 	if (nSID == 0) { U18 = 1 };
-	if (nCASRAM == 0) { U12 = 1 };
 	if (nBASIC == 0) U3 = 1;
 	if (nKERNAL == 0) U4 = 1;
 	if (nCHAROM == 0) U5 = 1;
@@ -517,35 +566,92 @@ function update_lines() {
 		if (nCHAROM == 0) set_data_lines( chargen_rom[BUS_ADDRESS & 0x0fff] ) ;
 	}
 
-	if (nCASRAM == 0 && RW == 1 && master_clock%8 >= 6) {
-		set_data_lines ( U12_RAM(1, BUS_ADDRESS & 0xffff, 0) );
+// DRAM emulation
+	if (nRAS == 1 && nCASRAM == 1) {
+		document.getElementById("ROW_ADDRESS").value = '';
+		document.getElementById("COL_ADDRESS").value = '';
+	}
+	if (last_nRAS == 1 && nRAS == 0 && nCASRAM == 1) {
+		row_address = 0;
+		for (var i=0; i<=7; i++) {
+			if (MA[i] >= 0) row_address |= MA[i]<<i;
+		}
+		document.getElementById("ROW_ADDRESS").value = toHex( row_address, 2);
+	}
+
+	if (last_nCASRAM == 1 && nCASRAM == 0) {
+		col_address = 0;
+		for (var i=0; i<=7; i++) {
+			if (MA[i] >= 0) col_address |= MA[i]<<i;
+		}
+		document.getElementById("COL_ADDRESS").value = toHex( col_address, 2);
+	}
+
+	if ( nCASRAM == 0) {
+		U12 = 1;
+
+		if ( RW == 1 && master_clock%8 >= 6) {
+			set_data_lines ( dram[ (col_address*256 + row_address) & 0xffff] );
+		}
+		if ( RW == 0 && master_clock%8 == 7) {
+			dram[ (col_address*256 + row_address) & 0xffff] =  DATA;
+		}
+	}
+	last_nRAS = nRAS;
+	last_nCASRAM = nCASRAM;
+
+// D8..D11 
+// U16 4066 near color ram
+// CPU write cycle
+	if (AEC == 1 && ( RW == 0 || nCOLORRAM == 1) ) {		
+		if (D[0] >= 0) D[8] = D[0];
+		if (D[1] >= 0) D[9] = D[1];
+		if (D[2] >= 0) D[10] = D[2];
+		if (D[3] >= 0) D[11] = D[3];
 	}
 
 	if (nCOLORRAM == 0) {
 		U6 = 1
 		if (GRW == 1 && master_clock%8 >= 6) {
-			var val = U6_2114(1, BUS_ADDRESS & 0x03ff, 0);
+			var val = colour_ram[BUS_ADDRESS & 0x03ff];
 			D[8] = (val>>0) & 0x01;
 			D[9] = (val>>1) & 0x01;
 			D[10] = (val>>2) & 0x01;
 			D[11] = (val>>3) & 0x01;
 		}
+		if (GRW == 0 && master_clock%8 >= 6) {
+			var val = 0;
+			val |= D[8] << 0;
+			val |= D[9] << 1;
+			val |= D[10] << 2;
+			val |= D[11] << 3;
+			colour_ram[BUS_ADDRESS & 0x03ff] = val ;
+		}
 	};
-
 
 // D8..D11 
 // U16 4066 near color ram
-	if (AEC == 1) {		// CPU cycle
-		if (D[0] >= 0) D[8] = D[0];
-		if (D[1] >= 0) D[9] = D[1];
-		if (D[2] >= 0) D[10] = D[2];
-		if (D[3] >= 0) D[11] = D[3];
+// CPU read cycle
+		if (AEC == 1 && RW == 1 ) {		
+//			DATA = 0;
+			if (D[8] >= 0) { 
+				D[0] = D[8];
+				DATA |= D[0]<<0
+			}
+			if (D[9] >= 0) {
+				D[1] = D[9];
+				DATA |= D[1]<<1
+			}
+			if (D[10] >= 0) {
+				D[2] = D[10];
+				DATA |= D[2]<<2
+			}
+			if (D[11] >= 0) {
+				D[3] = D[11];
+				DATA |= D[3]<<3
+			}
 
-		if (D[8] >= 0) D[0] = D[8];
-		if (D[9] >= 0) D[1] = D[9];
-		if (D[10] >= 0) D[2] = D[10];
-		if (D[11] >= 0) D[3] = D[11];
-	}
+		}
 }
 
 function load_binary_resource(url) {
@@ -596,15 +702,6 @@ D0	F6	/ROML
 
 */
 
-function set_data_lines(data) {
-	DATA	= data;
-
-	for (var i=0; i<=7; i++) {
-		D[i]	= (data>>i) & 0x01;
-	}
-	document.getElementById("DATA").value = toHex(data, 2);
-}
-
 function set_pla_output(data) {
 	nROML	= (data>>0) & 0x01;
 	nIO	= (data>>1) & 0x01;
@@ -639,34 +736,28 @@ function build_pla_addr() {
 	return(result);
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////
+//		page element change handlers
+
 function set_addr(id) {
 	var val = document.getElementById(id).value;
         var res = val.match( /^\$?([0-9A-Fa-f]{1,4})$/ ) ;
 
-	if (id == 'CPU_ADDRESS' || id == 'VIC_ADDRESS' ) {
-		if ( res ) {
-//			alert ("set_var got id: " + id + " result: " + res[1] );
-			window[id] = parseInt('0x' + res[1]);
-		} else {
-			alert ("invalid address : " + val );
-			document.getElementById(id).value = '$' + window[id].toString(16);
-		}
-	}
-	update_all();
-}
-
-function U6_2114 (rw,addr,data) {
-	if (rw == 1) {	// read cycle
-		return Math.random() * (16 - 0) + 0;
+	if ( res ) {
+		//alert ("set_var got id: " + id + " result: " + res[1] );
+		window[id] = parseInt('0x' + res[1]);
+		if (id == 'DATA') set_data_lines(DATA);
+		update_all();
+	} else {
+		alert ("invalid address : " + val );
+		document.getElementById(id).value = '$' + window[id].toString(16);
 	}
 }
 
-function U12_RAM (rw,addr,data) {
-// a massive cheat here....
-// we need real data
-// we need to look at RAS/CAS like a real chip would
-	if (rw == 1) {	// read cycle
-		return Math.random() * (256 - 0) + 0;
+function addr_change(id, delta) {
+	if (id == 'CPU_ADDRESS' || id == 'VIC_ADDRESS') {
+		window[id] = (window[id] + delta) & 0xffff ;
+		update_all();
 	}
 }
 
@@ -689,7 +780,6 @@ function set_signal_checkbox(id, checked) {
 }
 
 function set_signal(id) {
-
 	var name;
 	if (id.substring(0, 1) == '_') { 
 		name = id.substring(1);
@@ -698,10 +788,10 @@ function set_signal(id) {
 		} else {
 			if (window[name] == 1) {
 				window[name] = 0;
-//				document.getElementById(id).style.backgroundColor = "#0c0";
+//				document.getElementById(id).style.backgroundColor = C64Green;	//"#0c0";
 			} else {
 				window[name] = 1;
-//				document.getElementById(id).style.backgroundColor = "#c00";
+//				document.getElementById(id).style.backgroundColor = C64LightRed;	//"#c00";
 			}
 			update_all();
 		}
@@ -710,44 +800,88 @@ function set_signal(id) {
 }
 
 
-function change_CSS_signal(id, state){
+////////////////////////////////////////////////////////////////////////////////////////////
+//		CSS fiddling functions to light stuff up
+
+function change_CSS_digital_signal(id, state){
 
 	var colour = "stroke: none;";
 	var width = "stroke-width:5;";
 
 	if (state == 0) {
-		colour = "stroke: #0C0;";	// 282
+		colour = "stroke: "+C64Green+";";	//#0C0;";	// 282
 		width = "stroke-width:6;";
 	}
 	if (state == 1) {
-		colour = "stroke: #C00;";	// D55
+		colour = "stroke: "+C64LightRed+";";	//#C00;";	// D55
 		width = "stroke-width:6;";
 	}
 	newStyles += id + " { " + colour + width + "}\n";
 }
 
+function change_CSS_analog_signal(id, value){
+
+	var red = parseInt(value * 191/99);	// colours 00-c0
+	var green = 191-red;
+
+	red = ("00" + (+red).toString(16)).substr(-2);
+	green = ("00" + (+green).toString(16)).substr(-2);
+	var blue = ("00");
+
+	var colour = "stroke: #" + red + green + blue + ";";
+	var width = "stroke-width:10;";
+	if (value == -1) {
+		colour = "stroke: none;";
+		width = "stroke-width:10;";
+	}
+
+	newStyles += id + " { " + colour + width + "}\n";
+}
+
 function change_CSS_chip(id, state){
 
-	var fill = "fill: #F2F;";
+	var fill = "fill: "+C64Blue+";";	//#F2F;";
 	var opacity = "fill-opacity:0.00;";
 
 	if (state == true) {
-		fill = "fill: #F2F;";
-		opacity = "fill-opacity:0.27;";
+		opacity = "fill-opacity:0.45;";
 	}
 	newStyles += id + " { " + fill + opacity + "}\n";
 }
 
 function change_CSS_bus(id, colour_str){
 
-	var colour = "stroke: #" + colour_str + ";";
+	var colour = "stroke: " + colour_str + ";";
 	var width = "stroke-width:10;";
-	if (colour_str == -1) {
-		colour = "stroke: none;";
-		width = "stroke-width:10;";
-	}
 
 	newStyles += id + " { " + colour + width + "}\n";
+}
 
+
+
+////////////////////////////////////////////////////////////////////////////////////////////
+//		Boring stuff below here....
+
+// C64 palette colours
+
+var	C64Black	= '#000';
+var	C64White	= '#fff';
+var	C64Red		= '#813338';
+var	C64Cyan		= '#75CEC8';
+var	C64Purple	= '#8e3c97';
+var	C64Green	= '#56ac4d';
+var	C64Blue		= '#2e2c9b';
+var	C64Yellow	= '#edf171';
+var	C64Orange	= '#8e5029';
+var	C64Brown	= '#553800';
+var	C64LightRed	= '#c46c71';
+var	C64DarkkGrey	= '#4a4a4a';
+var	C64MediumGrey	= '#7b7b7b';
+var	C64LightGreen	= '#a9ff9f';
+var	C64LightBlue	= '#706deb';
+var	C64LightGrey	= '#b2b2b2';
+
+function toHex(number, digits) {
+	return '$' + ("0000" + (+number).toString(16)).substr(-digits);
 }
 
