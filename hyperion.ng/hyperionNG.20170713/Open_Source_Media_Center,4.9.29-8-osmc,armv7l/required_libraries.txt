@@ -1,0 +1,29 @@
+libavahi-client3:armhf
+libavahi-common3:armhf
+libavahi-compat-libdnssd1:armhf
+libavahi-core7:armhf
+libc6:armhf
+libdbus-1-3:armhf
+libdrm2:armhf
+libfreetype6:armhf
+libgcc1:armhf
+libglapi-mesa:armhf
+libgles2-mesa:armhf
+libglib2.0-0:armhf
+libgraphite2-3:armhf
+libharfbuzz0b:armhf
+libicu52:armhf
+libpcre3:armhf
+libpng12-0:armhf
+libpython2.7:armhf
+libqt5core5a:armhf
+libqt5gui5:armhf
+libqt5network5:armhf
+libqt5serialport5:armhf
+libstdc++6:armhf
+libudev1:armhf
+libusb-1.0-0:armhf
+rbp-userland-osmc: /opt/vc/lib/libbcm_host.so
+rbp-userland-osmc: /opt/vc/lib/libvchiq_arm.so
+rbp-userland-osmc: /opt/vc/lib/libvcos.so
+zlib1g:armhf
